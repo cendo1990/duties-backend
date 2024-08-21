@@ -1,93 +1,40 @@
-import { Pool } from "pg";
-import dotenv from 'dotenv'; 
-import { env } from "process";
+import { DataProvider } from "./src/Common/DataProvider";
+import { TodoAPI, TodoGetRequest } from "./src/Todo/Todo";
+import express from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
 
-dotenv.config();
 
-const pool = new Pool({
-  host: env.POSTGRES_HOST,
-  user: env.POSTGRES_USER,
-  password: env.POSTGRES_PASSWORD,
-  database: env.POSTGRES_DB,
-  port: env.POSTGRES_PORT ? parseInt(env.POSTGRES_PORT) : 5432,
-  idleTimeoutMillis: 30000,
-});
+DataProvider.init();
+const dataProvider = new DataProvider();
+// dataProvider.get(new TodoGetRequest(new Map([
+//     ["id", {values:["2"], operator:"=", relation: "&&"}],
+//     ["name", {values:["test"], operator:"LIKE", relation: "&&"}]
+// ])));
 
-class Todo{
-    id: number = 0;
-    name: string = "";
-
-    constructor(id: number, name: string)
-    {
-        this.id = id;
-        this.name = name;
-    }
-}
-
-const getTodoList = async () => {
-    try {
-        const result = await pool.query("SELECT id, name FROM todo");
-        const users = result.rows;
-        console.log(users);
-    } catch (error) {
-        console.log(error);
-    }
+const corsOptions = {
+    origin: [
+        'http://127.0.0.1:3000',
+        'http://localhost:3000'
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-const createTodo = async (name:string) => {
-    try {
-        const insertUser = "INSERT INTO todo (name) VALUES ($1) RETURNING *";
-        const result = await pool.query(insertUser, [name]);
-        if( result.rows.length == 1 )
-        {
-            const user = result.rows[0];
-            console.log(user);
-        }
-    } catch (error) {
-        console.log(error);
-    }
-}
+const app = express();
+const port = 25000;
 
-const getTodo = async (id:number) => {
-    try {
-        const result = await pool.query("SELECT id, name FROM todo WHERE id = $1", [id]);
-        
-        if(result.rows.length == 1)
-        {
-            const user = result.rows[0];
-            console.log(user);
-        }
-    } catch (error) {
-        console.log(error);
-    }
-};
+app.use(bodyParser.json())
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
+app.use(cors(corsOptions));
 
-const updateTodo = async (data:Todo) => {
-    try {
-        const id = data.id;
-        const name = data.name;
-        const result = await pool.query("UPDATE todo SET name = $1 WHERE id = $2;", [name, id]);
-        console.log(result);
-        if(result.rowCount == 1)
-        {
-            console.log(data.id);
-        }
-    } catch (error) {
-        console.log(error);
-    }
-};
+let todoApi = new TodoAPI(app, dataProvider);
+todoApi.init();
 
-const deleteTodo = async (id:number) => {
-    try {
-        const result = await pool.query("DELETE FROM todo WHERE id = $1", [id]);
-        
-        if(result.rowCount == 1)
-        {
-            console.log(id);
-        }
-    } catch (error) {
-        console.log(error);
-    }
-};
-
-export default pool;
+app.listen(port, () => {
+  console.log(`App running on port ${port}.`)
+})
