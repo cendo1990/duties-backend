@@ -4,6 +4,9 @@ import pgFormat from "pg-format"
 import { env } from "process";
 import dotenv from 'dotenv';
 import { GetOneRequest } from "../Types/GetOne";
+import { UpdateOneRequest } from "../Types/UpdateOne";
+import { CreateOneRequest } from "../Types/CreateOne";
+import { DeleteOneRequest } from "../Types/DeleteOne";
 
 dotenv.config();
 
@@ -15,9 +18,9 @@ export interface BasicData
 export enum ErrorCode
 {
     NONE = 0,
-    INTERNAL_ERROR = 10000,
-    DB_ERROR = 10001,
-    NOT_FOUND = 20000,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    INTERNAL_ERROR = 500,
 }
 
 export class ErrorData
@@ -84,7 +87,7 @@ export class DataProvider
                 SELECT 
                     (SELECT count(*) FROM %I WHERE %s) as count, 
                     (SELECT json_agg(t.*) FROM (
-                        SELECT %s FROM %I WHERE %s ORDER BY id LIMIT %s OFFSET %s
+                        SELECT %s FROM %I WHERE %s ORDER BY id DESC LIMIT %s OFFSET %s
                     ) AS t)
             `, params.type, whereCondition.join(' AND '), fields, params.type, whereCondition.join(' AND '), params.limit.toString(), params.offset.toString());
             console.log(sql);
@@ -92,14 +95,14 @@ export class DataProvider
                 if( error && errCallback )
                 {
                     console.log(error);
-                    errCallback(new ErrorData(ErrorCode.DB_ERROR, error));
+                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
                     return;
                 }
                 // console.log(results);
                 if( results.rows.length == 1 )
                 {
                     const data = results.rows[0].json_agg;
-                    const total = results.rows[0].count;
+                    const total = parseInt(results.rows[0].count);
                     console.log(data);
                     if(callback)
                     {
@@ -129,13 +132,13 @@ export class DataProvider
                 if( error && errCallback )
                 {
                     console.log(error);
-                    errCallback(new ErrorData(ErrorCode.DB_ERROR, error));
+                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
                     return;
                 }
                 if( results.rows.length == 1 )
                 {
                     const data = results.rows[0];
-                    console.log(data);
+                    console.log("getOne", data);
                     if(callback)
                     {
                         callback(data);
@@ -143,7 +146,10 @@ export class DataProvider
                 }
                 else
                 {
-                    errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                    if( errCallback )
+                    {
+                        errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                    }
                 }
             });
         } catch (error) {
@@ -156,48 +162,153 @@ export class DataProvider
         }
     };
     
-    createOne = async (name:string) => {
+    createOne = async (params:CreateOneRequest, callback:Function, errCallback:Function) => {
         try {
-            const insertUser = "INSERT INTO todo (name) VALUES ($1) RETURNING *";
-            const result = await DataProvider.pool.query(insertUser, [name]);
-            if( result.rows.length == 1 )
+            if( !params.data )
             {
-                const user = result.rows[0];
-                console.log("createTodo", user);
+                if( errCallback )
+                {
+                    errCallback(new ErrorData(ErrorCode.BAD_REQUEST, {}));
+                }
+                return;
             }
-            else
-            {
-                console.log("createTodo", result.rowCount);
-            }
+            let keys = Object.keys(params.data);
+            let values = Object.values(params.data);
+            const sql = pgFormat("INSERT INTO %s (%s) VALUES (%s) RETURNING *", params.type, keys.join(', '), values.join(', '));
+            console.log(sql);
+            DataProvider.pool.query(sql, (error, results)=>{
+                if( error && errCallback )
+                {
+                    console.log(error);
+                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                    return;
+                }
+                if( results.rows.length == 1 )
+                {
+                    const data = results.rows[0];
+                    console.log("createOne", data);
+                    if(callback)
+                    {
+                        callback(data);
+                    }
+                }
+                else
+                {
+                    console.log("createOne", results.rowCount);
+                    if( errCallback )
+                    {
+                        errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                    }
+                }
+            });
+           
         } catch (error) {
             console.log(error);
+            if( error && errCallback )
+            {
+                errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                return;
+            }
         }
     }
     
-    updateOne = async (data:BasicData) => {
+    updateOne = async (params:UpdateOneRequest, callback:Function, errCallback:Function) => {
         try {
-            const id = data.id;
-            const result = await DataProvider.pool.query("UPDATE todo SET name = $1 WHERE id = $2", ["name", id]);
-            console.log(result);
-            if(result.rowCount == 1)
+            if( !params.data || !params.data.id )
             {
-                console.log(data.id);
+                if( errCallback )
+                {
+                    errCallback(new ErrorData(ErrorCode.BAD_REQUEST, {}));
+                }
+                return;
             }
+            const id = params.data.id;
+            let setList:string[] = [];
+            Object.keys(params.data).forEach((key:string)=>{
+                if( params.data && key != "id" )
+                {
+                    setList.push(`${key} = '${params.data[key]}'`);
+                }
+            });
+            const sql = pgFormat("UPDATE %s SET %s WHERE id = %s", params.type, setList.join(" AND "), params.data.id);
+            console.log(sql);
+            DataProvider.pool.query(sql, (error, results)=>{
+                if( error && errCallback )
+                {
+                    console.log(error);
+                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                    return;
+                }
+                if( results.rowCount == 1 )
+                {
+                    const data = params.data;
+                    if(callback)
+                    {
+                        callback(data);
+                    }
+                }
+                else
+                {
+                    if( errCallback )
+                    {
+                        errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                    }
+                }
+            });
         } catch (error) {
             console.log(error);
+            if( error && errCallback )
+            {
+                console.log(error);
+                errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                return;
+            }
         }
     };
     
-    deleteOne = async (id:number) => {
+    deleteOne = async (params:DeleteOneRequest, callback:Function, errCallback:Function) => {
         try {
-            const result = await DataProvider.pool.query("DELETE FROM todo WHERE id = $1", [id]);
-            
-            if(result.rowCount == 1)
+            if( !params.id )
             {
-                console.log(id);
+                if( errCallback )
+                {
+                    errCallback(new ErrorData(ErrorCode.BAD_REQUEST, {}));
+                }
+                return;
             }
+            const sql = pgFormat("DELETE FROM %s WHERE id = %s", params.type, params.id);
+            console.log(sql);
+            DataProvider.pool.query(sql, (error, results)=>{
+                if( error && errCallback )
+                {
+                    console.log(error);
+                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                    return;
+                }
+                if(results.rowCount == 1)
+                {
+                    console.log(params.id);
+                    if(callback)
+                    {
+                        callback({});
+                    }
+                }
+                else
+                {
+                    if( errCallback )
+                    {
+                        errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                    }
+                }
+            });
         } catch (error) {
             console.log(error);
+            if( error && errCallback )
+            {
+                console.log(error);
+                errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+                return;
+            }
         }
     };
 }

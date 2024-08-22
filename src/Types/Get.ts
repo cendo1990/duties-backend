@@ -30,8 +30,10 @@ export class GetRequest implements GetInterface
     fields: string[] = ["*"];
     filters = new Map<string, FilterItem>();
 
-    constructor(filters:Map<string, FilterItem> = new Map<string, FilterItem>())
+    constructor(offset: number = 0, limit: number = 5, filters:Map<string, FilterItem> = new Map<string, FilterItem>())
     {
+        this.offset = offset;
+        this.limit = limit;
         this.filters = filters;
     }
 }
