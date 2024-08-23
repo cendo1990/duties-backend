@@ -1,7 +1,7 @@
 import { BasicData, DataProvider, ErrorCode, ErrorData, ResData } from "../Common/DataProvider";
 import { defaultFilterItem, FilterItem, GetRequest, GetResData } from "../Types/Get";
 import { GetOneRequest } from "../Types/GetOne";
-import { Express } from "express";
+import { Express, Response } from "express";
 import merge from "lodash.merge";
 import { body, validationResult } from 'express-validator';
 import { UpdateOneRequest } from "../Types/UpdateOne";
@@ -97,6 +97,20 @@ export class TodoAPI
         return { offset, limit, filters };
     }
 
+    setStatus(response: Response, code:ErrorCode)
+    {
+        switch(code)
+        {
+            case ErrorCode.NOT_FOUND:
+                response.status(404);
+                break;
+            case ErrorCode.INTERNAL_ERROR:
+            case ErrorCode.INTERNAL_ERROR:
+                response.status(500);
+                break;
+        }
+    }
+
     init()
     {
         this.app.get('/todos', (request, response) => {
@@ -126,6 +140,10 @@ export class TodoAPI
 
         this.app.get('/todos/:id', (request, response) => {
             console.log("getOne todo", request.body, request.params, request.query);
+            const errors = validationResult(request);
+            if (!errors.isEmpty()) {
+                return response.status(422).json({ errors: errors.array() });
+            }
             let getOneRes = new TodoGetOneRequest();
             getOneRes.id = parseInt(request.params.id);
             this.dataProvider.getOne(getOneRes, (data:any, total:number)=>{
@@ -140,24 +158,18 @@ export class TodoAPI
                     code: errorData.code,
                     data: []
                 }
-                switch(errorData.code)
-                {
-                    case ErrorCode.NOT_FOUND:
-                        response.status(404);
-                        break;
-                    case ErrorCode.INTERNAL_ERROR:
-                    case ErrorCode.INTERNAL_ERROR:
-                        response.status(500);
-                        break;
-                }
+                this.setStatus(response, errorData.code);
                 response.json(resData);
             });
         });
 
         this.app.put('/todos/:id', (request, response) => {
             console.log("updateOne todo", request.body, request.params, request.query);
+            const errors = validationResult(request);
+            if (!errors.isEmpty()) {
+                return response.status(422).json({ errors: errors.array() });
+            }
             let getOneRes = new TodoGetOneRequest();
-
             getOneRes.id = parseInt(request.params.id);
             getOneRes.data = request.body;
             this.dataProvider.updateOne(getOneRes, (data:any)=>{
@@ -172,27 +184,18 @@ export class TodoAPI
                     code: errorData.code,
                     data: []
                 }
-                switch(errorData.code)
-                {
-                    case ErrorCode.BAD_REQUEST:
-                        response.status(400);
-                        break;
-                    case ErrorCode.NOT_FOUND:
-                        response.status(404);
-                        break;
-                    case ErrorCode.INTERNAL_ERROR:
-                    case ErrorCode.INTERNAL_ERROR:
-                        response.status(500);
-                        break;
-                }
+                this.setStatus(response, errorData.code);
                 response.json(resData);
             });
         });
 
         this.app.post('/todos', (request, response) => {
             console.log("updateOne todo", request.body, request.params, request.query);
+            const errors = validationResult(request);
+            if (!errors.isEmpty()) {
+                return response.status(422).json({ errors: errors.array() });
+            }
             let createOneRes = new TodoCreateOneRequest();
-
             createOneRes.data = request.body;
             this.dataProvider.createOne(createOneRes, (data:any)=>{
                 console.log("updateOne todo 2", data);
@@ -206,25 +209,17 @@ export class TodoAPI
                     code: errorData.code,
                     data: []
                 }
-                switch(errorData.code)
-                {
-                    case ErrorCode.BAD_REQUEST:
-                        response.status(400);
-                        break;
-                    case ErrorCode.NOT_FOUND:
-                        response.status(404);
-                        break;
-                    case ErrorCode.INTERNAL_ERROR:
-                    case ErrorCode.INTERNAL_ERROR:
-                        response.status(500);
-                        break;
-                }
+                this.setStatus(response, errorData.code);
                 response.json(resData);
             });
         });
 
         this.app.delete('/todos/:id', (request, response) => {
             console.log("deleteOne todo", request.body, request.params, request.query);
+            const errors = validationResult(request);
+            if (!errors.isEmpty()) {
+                return response.status(422).json({ errors: errors.array() });
+            }
             let getOneRes = new TodoDeleteOneRequest();
             getOneRes.id = parseInt(request.params.id);
             this.dataProvider.deleteOne(getOneRes, (data:any)=>{
@@ -239,19 +234,7 @@ export class TodoAPI
                     code: errorData.code,
                     data: []
                 }
-                switch(errorData.code)
-                {
-                    case ErrorCode.BAD_REQUEST:
-                        response.status(400);
-                        break;
-                    case ErrorCode.NOT_FOUND:
-                        response.status(404);
-                        break;
-                    case ErrorCode.INTERNAL_ERROR:
-                    case ErrorCode.INTERNAL_ERROR:
-                        response.status(500);
-                        break;
-                }
+                this.setStatus(response, errorData.code);
                 response.json(resData);
             });
         });

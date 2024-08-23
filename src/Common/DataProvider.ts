@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, QueryResult } from "pg";
 import { FilterItem, GetRequest } from "../Types/Get";
 import pgFormat from "pg-format"
 import { env } from "process";
@@ -77,6 +77,16 @@ export class DataProvider
         }
         return whereCondition;
     }
+
+    dataManagerCallback = (callback:Function, errCallback:Function)=>(error:Error, results:QueryResult)=>{
+        if( error && errCallback )
+        {
+            console.log(error);
+            errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
+            return;
+        }
+        callback(results);
+    };
     
     get = (params:GetRequest, callback:Function, errCallback:Function) => {
         try {
@@ -91,14 +101,7 @@ export class DataProvider
                     ) AS t)
             `, params.type, whereCondition.join(' AND '), fields, params.type, whereCondition.join(' AND '), params.limit.toString(), params.offset.toString());
             console.log(sql);
-            DataProvider.pool.query(sql, (error, results)=>{
-                if( error && errCallback )
-                {
-                    console.log(error);
-                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
-                    return;
-                }
-                // console.log(results);
+            DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rows.length == 1 )
                 {
                     const data = results.rows[0].json_agg;
@@ -109,10 +112,15 @@ export class DataProvider
                         callback(data, total);
                     }
                 }
-                
-            });
-            
-            
+                else
+                {
+                    if( errCallback )
+                    {
+                        errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
+                        return;
+                    }
+                }
+            }, errCallback));
         } catch (error) {
             console.log(error);
             if( error && errCallback )
@@ -128,13 +136,7 @@ export class DataProvider
             const fields = params?.fields?.length > 0 ? params.fields.join(", ") : "*";
             const sql = pgFormat("SELECT %s FROM %I WHERE id = %s", fields, params.type, params.id);
             console.log(sql);
-            DataProvider.pool.query(sql, (error, results)=>{
-                if( error && errCallback )
-                {
-                    console.log(error);
-                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
-                    return;
-                }
+            DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rows.length == 1 )
                 {
                     const data = results.rows[0];
@@ -151,7 +153,7 @@ export class DataProvider
                         errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
                     }
                 }
-            });
+            }, errCallback));
         } catch (error) {
             console.log(error);
             if( error && errCallback )
@@ -174,15 +176,12 @@ export class DataProvider
             }
             let keys = Object.keys(params.data);
             let values = Object.values(params.data);
+            values = values.map((obj)=>{
+                return `'${obj}'`;
+            });
             const sql = pgFormat("INSERT INTO %s (%s) VALUES (%s) RETURNING *", params.type, keys.join(', '), values.join(', '));
             console.log(sql);
-            DataProvider.pool.query(sql, (error, results)=>{
-                if( error && errCallback )
-                {
-                    console.log(error);
-                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
-                    return;
-                }
+            DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rows.length == 1 )
                 {
                     const data = results.rows[0];
@@ -200,8 +199,7 @@ export class DataProvider
                         errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
                     }
                 }
-            });
-           
+            }, errCallback));
         } catch (error) {
             console.log(error);
             if( error && errCallback )
@@ -232,13 +230,7 @@ export class DataProvider
             });
             const sql = pgFormat("UPDATE %s SET %s WHERE id = %s", params.type, setList.join(" AND "), params.data.id);
             console.log(sql);
-            DataProvider.pool.query(sql, (error, results)=>{
-                if( error && errCallback )
-                {
-                    console.log(error);
-                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
-                    return;
-                }
+            DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rowCount == 1 )
                 {
                     const data = params.data;
@@ -254,7 +246,7 @@ export class DataProvider
                         errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
                     }
                 }
-            });
+            }, errCallback));
         } catch (error) {
             console.log(error);
             if( error && errCallback )
@@ -278,13 +270,7 @@ export class DataProvider
             }
             const sql = pgFormat("DELETE FROM %s WHERE id = %s", params.type, params.id);
             console.log(sql);
-            DataProvider.pool.query(sql, (error, results)=>{
-                if( error && errCallback )
-                {
-                    console.log(error);
-                    errCallback(new ErrorData(ErrorCode.INTERNAL_ERROR, error));
-                    return;
-                }
+            DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if(results.rowCount == 1)
                 {
                     console.log(params.id);
@@ -300,7 +286,7 @@ export class DataProvider
                         errCallback(new ErrorData(ErrorCode.NOT_FOUND, {}));
                     }
                 }
-            });
+            }, errCallback));
         } catch (error) {
             console.log(error);
             if( error && errCallback )
