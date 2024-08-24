@@ -88,6 +88,20 @@ export class DataProvider
         }
         callback(results);
     };
+
+    getDataErrorData(params:any):ResData | undefined
+    {
+        console.log("getDataErrorData");
+        if(!params.data?.name || params.data?.name.length > 20)
+        {
+            let resData: ResData = {
+                code: ErrorCode.BAD_REQUEST,
+                data: []
+            }
+            return resData;
+        }
+        return undefined;
+    }
     
     get = (params:GetRequest, callback:Function, errCallback:Function) => {
         try {
@@ -96,11 +110,11 @@ export class DataProvider
             let whereCondition = this.getWhereCondition(params?.filters);
             const sql = pgFormat(`
                 SELECT 
-                    (SELECT count(*) FROM %I WHERE %s) as count, 
+                    (SELECT count(*) FROM %I) as count, 
                     (SELECT json_agg(t.*) FROM (
-                        SELECT %s FROM %I WHERE %s ORDER BY id DESC LIMIT %s OFFSET %s
+                        SELECT %s FROM %I ORDER BY id DESC LIMIT %s OFFSET %s
                     ) AS t)
-            `, params.type, whereCondition.join(' AND '), fields, params.type, whereCondition.join(' AND '), params.limit.toString(), params.offset.toString());
+            `, params.type, fields, params.type, params.limit.toString(), params.offset.toString());
             console.log(sql);
             DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rows.length == 1 )
@@ -135,7 +149,7 @@ export class DataProvider
     getOne = async (params:GetOneRequest, callback:Function, errCallback:Function) => {
         try {
             const fields = params?.fields?.length > 0 ? params.fields.join(", ") : "*";
-            const sql = pgFormat("SELECT %s FROM %I WHERE id = %s", fields, params.type, params.id);
+            const sql = pgFormat("SELECT %s FROM %I WHERE id = %L", fields, params.type, params.id);
             console.log(sql);
             DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rows.length == 1 )
@@ -167,13 +181,14 @@ export class DataProvider
     
     createOne = async (params:CreateOneRequest, callback:Function, errCallback:Function) => {
         try {
-            if( !params.data )
+            const errorData = this.getDataErrorData(params);
+            if( errorData )
             {
                 if( errCallback )
                 {
                     errCallback(new ErrorData(ErrorCode.BAD_REQUEST, {}));
                 }
-                return;
+                return; 
             }
             let keys = Object.keys(params.data);
             let values = Object.values(params.data);
@@ -213,7 +228,16 @@ export class DataProvider
     
     updateOne = async (params:UpdateOneRequest, callback:Function, errCallback:Function) => {
         try {
-            if( !params.data || !params.data.id )
+            const errorData = this.getDataErrorData(params);
+            if( errorData )
+            {
+                if( errCallback )
+                {
+                    errCallback(new ErrorData(ErrorCode.BAD_REQUEST, {}));
+                }
+                return; 
+            }
+            if( !params.data.id )
             {
                 if( errCallback )
                 {
@@ -229,7 +253,7 @@ export class DataProvider
                     setList.push(`${key} = '${params.data[key]}'`);
                 }
             });
-            const sql = pgFormat("UPDATE %s SET %s WHERE id = %s", params.type, setList.join(" AND "), params.data.id);
+            const sql = pgFormat("UPDATE %s SET %s WHERE id = %L", params.type, setList.join(" AND "), params.data.id);
             console.log(sql);
             DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if( results.rowCount == 1 )
@@ -269,7 +293,7 @@ export class DataProvider
                 }
                 return;
             }
-            const sql = pgFormat("DELETE FROM %s WHERE id = %s", params.type, params.id);
+            const sql = pgFormat("DELETE FROM %s WHERE id = %L", params.type, params.id);
             console.log(sql);
             DataProvider.pool.query(sql, this.dataManagerCallback((results:QueryResult)=>{
                 if(results.rowCount == 1)
