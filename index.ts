@@ -7,10 +7,6 @@ import cors from "cors";
 
 DataProvider.init();
 const dataProvider = new DataProvider();
-// dataProvider.get(new TodoGetRequest(new Map([
-//     ["id", {values:["2"], operator:"=", relation: "&&"}],
-//     ["name", {values:["test"], operator:"LIKE", relation: "&&"}]
-// ])));
 
 const corsOptions = {
     origin: [

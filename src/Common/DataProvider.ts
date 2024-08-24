@@ -277,7 +277,7 @@ export class DataProvider
                     console.log(params.id);
                     if(callback)
                     {
-                        callback({});
+                        callback(results.rowCount);
                     }
                 }
                 else
