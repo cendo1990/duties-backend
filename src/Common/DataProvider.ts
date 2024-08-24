@@ -10,9 +10,9 @@ import { DeleteOneRequest } from "../Types/DeleteOne";
 
 dotenv.config();
 
-export interface BasicData
+export class BasicData
 {
-    id: number;
+    id: number = 0;
 }
 
 export enum ErrorCode
@@ -20,6 +20,7 @@ export enum ErrorCode
     NONE = 0,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
+    UNPROCESSABLE_CONTENT = 422,
     INTERNAL_ERROR = 500,
 }
 

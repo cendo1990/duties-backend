@@ -1,5 +1,5 @@
 import { DataProvider } from "./src/Common/DataProvider";
-import { TodoAPI, TodoGetRequest } from "./src/Todo/Todo";
+import { TodoApi } from "./src/Todo/TodoApi";
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -32,7 +32,7 @@ app.use(
 );
 app.use(cors(corsOptions));
 
-let todoApi = new TodoAPI(app, dataProvider);
+let todoApi = new TodoApi("todo", app, dataProvider);
 todoApi.init();
 
 app.listen(port, () => {

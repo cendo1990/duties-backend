@@ -11,4 +11,9 @@ export class GetOneRequest implements GetOneInterface
     type: string ="";
     id = 0;
     fields: string[] = ["*"];
+
+    constructor(type:string)
+    {
+        this.type = type;
+    }
 }

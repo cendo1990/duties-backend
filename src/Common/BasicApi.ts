@@ -1,60 +1,21 @@
 import { BasicData, DataProvider, ErrorCode, ErrorData, ResData } from "../Common/DataProvider";
 import { defaultFilterItem, FilterItem, GetRequest, GetResData } from "../Types/Get";
 import { GetOneRequest } from "../Types/GetOne";
-import { Express, Response } from "express";
+import { Express, Request, Response } from "express";
 import merge from "lodash.merge";
-import { body, validationResult } from 'express-validator';
+import { validationResult } from 'express-validator';
 import { UpdateOneRequest } from "../Types/UpdateOne";
 import { CreateOneRequest } from "../Types/CreateOne";
 import { DeleteOneRequest } from "../Types/DeleteOne";
 
-export interface Todo{
-    id: number;
-    name: string;
-}
-
-export class TodoData implements BasicData{
-    id: number = 0;
-    name: string= "";
-}
-
-const fields = ["id", "name"];
-const type = "todo";
-
-export class TodoGetRequest extends GetRequest
+export class BasicApi
 {
-    type: string = type;
-    fields: string[] = fields;
-}
-
-export class TodoGetOneRequest extends GetOneRequest
-{
-    type: string = type;
-    fields: string[] = fields;
-    data?: TodoData;
-}
-
-export class TodoUpdateOneRequest extends UpdateOneRequest
-{
-    type: string = type;
-}
-
-export class TodoCreateOneRequest extends CreateOneRequest
-{
-    type: string = type;
-}
-
-export class TodoDeleteOneRequest extends DeleteOneRequest
-{
-    type: string = type;
-}
-
-export class TodoAPI
-{
+    type:string = "";
     app:Express;
     dataProvider:DataProvider;
-    constructor(app:Express, dataProvider:DataProvider)
+    constructor(type:string, app:Express, dataProvider:DataProvider)
     {
+        this.type = type;
         this.app = app;
         this.dataProvider = dataProvider;
     }
@@ -99,28 +60,56 @@ export class TodoAPI
 
     setStatus(response: Response, code:ErrorCode)
     {
-        switch(code)
-        {
-            case ErrorCode.NOT_FOUND:
-                response.status(404);
-                break;
-            case ErrorCode.INTERNAL_ERROR:
-            case ErrorCode.INTERNAL_ERROR:
-                response.status(500);
-                break;
+        response.status(code);
+    }
+
+    getValidationResultErrorData(request:Request)
+    {
+        const errors = validationResult(request);
+        if (!errors.isEmpty()) {
+            let resData: ResData = {
+                code: ErrorCode.UNPROCESSABLE_CONTENT,
+                data: []
+            }
+            return resData;
         }
+        return null;
+    }
+
+    getDataErrorData(data:any):ResData | undefined
+    {
+        return undefined;
+    }
+
+    getIdErrorData(str:string)
+    {
+        try {
+            let id = parseInt(str);
+            if( !isNaN(id) )
+            {
+                
+                return null;
+            }
+        } catch (error) {
+            console.log("getIdErrorData", error);
+        }
+        let resData: ResData = {
+            code: ErrorCode.NOT_FOUND,
+            data: []
+        }
+        return resData; 
     }
 
     init()
     {
-        this.app.get('/todos', (request, response) => {
-            const errors = validationResult(request);
-            if (!errors.isEmpty()) {
-                return response.status(422).json({ errors: errors.array() });
+        this.app.get(`/${this.type}s`, (request, response) => {
+            const validationResultErrorData = this.getValidationResultErrorData(request);
+            if (validationResultErrorData) {
+                return response.status(ErrorCode.UNPROCESSABLE_CONTENT).json(validationResultErrorData);
             }
             const { offset, limit, filters } = this.getGetParams(request.query);
-            let getRes = new TodoGetRequest(offset, limit, filters);
-            console.log("get todo", request.body, request.params, request.query, getRes);
+            let getRes = new GetRequest(this.type, offset, limit, filters);
+            console.log("get", this.type, request.body, request.params, request.query, getRes);
             this.dataProvider.get(getRes, (data:any, total:number)=>{
                 let resData: GetResData = {
                     code: 0,
@@ -138,13 +127,18 @@ export class TodoAPI
             });
         });
 
-        this.app.get('/todos/:id', (request, response) => {
-            console.log("getOne todo", request.body, request.params, request.query);
-            const errors = validationResult(request);
-            if (!errors.isEmpty()) {
-                return response.status(422).json({ errors: errors.array() });
+        this.app.get(`/${this.type}s/:id`, (request, response) => {
+            console.log("getOne", this.type, request.body, request.params, request.query);
+            const validationResultErrorData = this.getValidationResultErrorData(request);
+            if (validationResultErrorData) {
+                return response.status(ErrorCode.UNPROCESSABLE_CONTENT).json(validationResultErrorData);
             }
-            let getOneRes = new TodoGetOneRequest();
+            const idErrorData = this.getIdErrorData(request.params.id);
+            if(idErrorData)
+            {
+                return response.status(ErrorCode.NOT_FOUND).json(idErrorData);
+            }
+            let getOneRes = new GetOneRequest(this.type);
             getOneRes.id = parseInt(request.params.id);
             this.dataProvider.getOne(getOneRes, (data:any, total:number)=>{
                 let resData: GetResData = {
@@ -163,14 +157,23 @@ export class TodoAPI
             });
         });
 
-        this.app.put('/todos/:id', (request, response) => {
-            console.log("updateOne todo", request.body, request.params, request.query);
-            const errors = validationResult(request);
-            if (!errors.isEmpty()) {
-                return response.status(422).json({ errors: errors.array() });
+        this.app.put(`/${this.type}s/:id`, (request, response) => {
+            console.log("updateOne", this.type, request.body, request.params, request.query);
+            const validationResultErrorData = this.getValidationResultErrorData(request);
+            if (validationResultErrorData) {
+                return response.status(ErrorCode.UNPROCESSABLE_CONTENT).json(validationResultErrorData);
             }
-            let getOneRes = new TodoGetOneRequest();
-            getOneRes.id = parseInt(request.params.id);
+            const idErrorData = this.getIdErrorData(request.params.id);
+            if(idErrorData)
+            {
+                return response.status(ErrorCode.NOT_FOUND).json(idErrorData);
+            }
+            const errorData = this.getDataErrorData(request?.body);
+            if(errorData)
+            {
+                return response.status(ErrorCode.BAD_REQUEST).json(errorData);
+            }
+            let getOneRes = new UpdateOneRequest(this.type);
             getOneRes.data = request.body;
             this.dataProvider.updateOne(getOneRes, (data:any)=>{
                 console.log("updateOne todo 2", data);
@@ -189,13 +192,18 @@ export class TodoAPI
             });
         });
 
-        this.app.post('/todos', (request, response) => {
-            console.log("updateOne todo", request.body, request.params, request.query);
-            const errors = validationResult(request);
-            if (!errors.isEmpty()) {
-                return response.status(422).json({ errors: errors.array() });
+        this.app.post(`/${this.type}s`, (request, response) => {
+            console.log("updateOne", this.type, request.body, request.params, request.query);
+            const validationResultErrorData = this.getValidationResultErrorData(request);
+            if (validationResultErrorData) {
+                return response.status(ErrorCode.UNPROCESSABLE_CONTENT).json(validationResultErrorData);
             }
-            let createOneRes = new TodoCreateOneRequest();
+            let errorData = this.getDataErrorData(request?.body);
+            if(errorData)
+            {
+                return response.status(ErrorCode.BAD_REQUEST).json(errorData);
+            }
+            let createOneRes = new CreateOneRequest(this.type);
             createOneRes.data = request.body;
             this.dataProvider.createOne(createOneRes, (data:any)=>{
                 console.log("updateOne todo 2", data);
@@ -214,13 +222,18 @@ export class TodoAPI
             });
         });
 
-        this.app.delete('/todos/:id', (request, response) => {
-            console.log("deleteOne todo", request.body, request.params, request.query);
-            const errors = validationResult(request);
-            if (!errors.isEmpty()) {
-                return response.status(422).json({ errors: errors.array() });
+        this.app.delete(`/${this.type}s/:id`, (request, response) => {
+            console.log("deleteOne", this.type, request.body, request.params, request.query);
+            const validationResultErrorData = this.getValidationResultErrorData(request);
+            if (validationResultErrorData) {
+                return response.status(ErrorCode.UNPROCESSABLE_CONTENT).json(validationResultErrorData);
             }
-            let getOneRes = new TodoDeleteOneRequest();
+            const idErrorData = this.getIdErrorData(request.params.id);
+            if(idErrorData)
+            {
+                return response.status(ErrorCode.NOT_FOUND).json(idErrorData);
+            }
+            let getOneRes = new DeleteOneRequest(this.type);
             getOneRes.id = parseInt(request.params.id);
             this.dataProvider.deleteOne(getOneRes, (data:any)=>{
                 console.log("deleteOne todo 2", data);
