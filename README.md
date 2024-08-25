@@ -51,7 +51,7 @@ For running pm2
 
 ### `npm install -g pm2`
 
-For starting a service in background by using serve
+For starting a service in background by using "npm run serve"
 
 ## Available Scripts
 
