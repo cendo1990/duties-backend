@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
+    "start": "npx ts-node index.ts",
+    "serve": "pm2 start ts-node index.ts --name duties-backend -i 5 --interpreter ./node_modules/.bin/ts-node",
+    "stop": "pm2 stop duties-backend",
     "test": "jest"
   },
   "repository": {
