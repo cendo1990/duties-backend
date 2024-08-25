@@ -65,4 +65,10 @@ Runs the app in the background mode.\
 
 ### `npm stop`
 
+Stop the app
+
+### `npm test`
+
+Launches the test by using jest
+
 Stop the app.\
